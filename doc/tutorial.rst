@@ -93,10 +93,11 @@ from *other* code in order to make use of the model.
 The rest of the model file will be component declarations. There are several
 types of components, some required and others optional. The required types are
 ``Monomer``, ``Parameter`` and ``Rule`` -- we have already encountered these in
-``tutorial_a.py``. The optional ones are ``Observable`` and ``Compartment``.
-Each of these component types is represented by a Python class which inherits
-from the base class ``Component``. The following sections will explain what each
-of these component types does in a model and how to create them.
+``tutorial_a.py``. The optional ones are ``Observable``, ``Compartment`` and
+``Expression``.  Each of these component types is represented by a Python class
+which inherits from the base class ``Component``. The following sections will
+explain what each of these component types does in a model and how to create
+them.
 
 Component
 ---------
@@ -121,7 +122,7 @@ specific protein or other biomolecule such as "EGFR" or "ATP". Monomers have a
 locations on the monomer which can *bind* with a site on another monomer and/or
 take on a *state*. Binding merely represents aggregation, not necessarily a
 formal chemical bond. States can range from the biochemically specific (e.g.
-"phosphorylated/unphosphorylated" to the generic (e.g. "active/inactive"). The
+"phosphorylated/unphosphorylated") to the generic (e.g. "active/inactive"). The
 site list is technically optional (as seen in ``tutorial_a.py``) but only the
 simplest toy models will be able to get by without them.
 
@@ -179,13 +180,12 @@ you defined in your model script -- they were implicitly added to the model's
 ``ComponentSet``, a special PySB class which acts like a list, a dict and a set
 rolled into one, although it can only hold ``Component`` objects and can only be
 appended to (never deleted from). Its list personality allows you to iterate
-over the components or index an individual component by integer position, with
+over the components or access an individual component by integer position, with
 the ordering of the values corresponding to the order in which the components
-were defined in the model. Its dict personality allows you to index an
-individual component with its string name and use the standard ``keys`` and
-``items`` methods. The set personality allows set operations with ordering
-retained. For binary set operators, the left-hand operand's ordering takes
-precedence.
+were defined in the model. Its dict personality allows you to access components
+by their string names and use the standard ``keys`` and ``items`` methods. The
+set personality allows set operations with ordering retained. For binary set
+operators, the left-hand operand's ordering takes precedence.
 
 We can also access the fields of a ``Monomer`` object such as ``name`` and
 ``sites``. See the :doc:`/modules/core` section of the module reference for
@@ -232,7 +232,7 @@ concentrations (i.e. initial conditions) and S.I. units for everything else:
 unimolecular rate constants in :math:`s^{-1}`, bimolecular rate constants in
 :math:`\#molecules^{-1} \times s^{-1}`, compartment volumes in :math:`L`, etc.
 
-In the following sections we will see how parameters are used to build other
+In the following sections we will see how parameters are used to define other
 model components.
 
 Rules
@@ -246,8 +246,8 @@ of a *name*, a pattern describing which molecular species should act as the
 The :py:class:`Rule constructor <pysb.core.Rule>` takes a name, a
 ``RuleExpression`` containing the reactant and product patterns (more on that
 below) and one or two ``Parameter`` objects for the rate constants. It also
-takes several optional boolean flags as kwargs which alter the behavior of the
-rule in certain ways.
+takes several optional boolean flags as keyword arguments which alter the
+behavior of the rule in certain ways.
 
 .. todo - describe flags somewhere and reference it here
 
