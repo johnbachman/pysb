@@ -365,33 +365,35 @@ Now that we've got our model, let's explore the ``rules`` container::
 We are almost ready to run a simulation--but first we have to specify the
 initial conditions of the system.
 
-Observables
------------
+Observable
+----------
 
-In our model we have two initial species (*C8* and *Bid*) and one
-output species (*tBid*). As shown in the :eq:`ODEs` derived from the
-reactions above, there are four mathematical species needed to
-describe the evolution of the system (i.e. *C8*, *Bid*, *tBid*, and
-*C8:Bid*). Although this system is rather small, there are situations
-when we will have many more species than we care to monitor or
-characterize throughout the time evolution of the :eq:`ODEs`. In
-addition, it will often happen that the desirable species are
-combinations or sums of many other species. For this reason the
-rules-based engines we currently employ implemented the *Observables*
-call which automatically collects the necessary information and
-returns the desired species. In our case, we will monitor the amount
-of free *C8*, unbound *Bid*, and active *tBid*. To specify the
-observables enter the following lines in your :file:`mymodel.py` file
-as follows::
+Observables are patterns associated with a name. They are used to group useful
+or experimentally relevant species, for example to identify the set of species
+that would be detected by a specific antibody or the total amount of a specific
+bound complex. In addition to its *name*, an observable has a *pattern*
+specifying the species to match and a *match type* which denotes whether the
+pattern should be applied to individual monomers or entire complexes.
 
-   Observable('obsC8', C8(b=None))
-   Observable('obsBid', Bid(b=None, S='u'))
-   Observable('obstBid', Bid(b=None, S='t'))
+The :py:class:`Observable constructor <pysb.core.Observable>` takes the name and
+pattern as its required arguments. The pattern can be anything that is
+acceptable on the reactant or product side of a rule expression. There is also
+an optional ``match`` argument which specifies the match type: the string
+``"molecules"`` to match monomers, or ``"species"`` to match complexes.
 
-As shown,the observable can be a species. As we will show later the
-observable can also contain wild-cards and given the "don't care don't
-write" approach to rule-writing it can be a very powerful approach to
-observe activated complexes.  
+Here we will define an observable for phosphorylated MEK, the output of our
+simple two-rule model::
+
+   Observable('pMEK', MEK(s218='p'))
+
+In our simple model this will only match one species, however if we added more
+rules that produced other MEK species with site s218 in state ``p`` then this
+observable would match them as well.
+
+An observable is most useful when examining simulation output, as its trajectory
+can be accessed directly by its name rather than as a list of un-named, numbered
+species trajectories. We will demonstrate this below in the section on simulation.
+
 
 Initial conditions
 ==================
