@@ -258,7 +258,7 @@ of Raf and MEK::
 
 Reading this rule in words, this rule says that "when Raf is unbound at its
 site k (i.e., its kinase catalytic site), and MEK is unbound at site s218
-(i.e., serine 218), the two proteins bind two each other using those two
+(i.e., serine 218), the two proteins bind to each other using those two
 sites at the rate defined by the parameter kf."
 
 There are several things to note about the syntax for specifying rules:
