@@ -1,3 +1,5 @@
+.. _useful_references:
+
 Useful References
 =================
 

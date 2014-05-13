@@ -235,138 +235,135 @@ unimolecular rate constants in :math:`s^{-1}`, bimolecular rate constants in
 In the following sections we will see how parameters are used to define other
 model components.
 
-Rules
------
+Rule
+----
 
-Rules define chemical reactions between molecules and complexes. A rule consists
-of a *name*, a pattern describing which molecular species should act as the
-*reactants*, another pattern describing how reactants should be transformed into
-*products*, and parameters denoting the *rate constants*.
+Rules define chemical reactions between molecules and complexes of molecules. A
+rule consists of a *name*, a pattern describing which molecular species should
+act as the *reactants*, another pattern describing how reactants should be
+transformed into *products*, and parameters denoting the *rate constants*.
 
-The :py:class:`Rule constructor <pysb.core.Rule>` takes a name, a
-``RuleExpression`` containing the reactant and product patterns (more on that
-below) and one or two ``Parameter`` objects for the rate constants. It also
-takes several optional boolean flags as keyword arguments which alter the
-behavior of the rule in certain ways.
+More specifically, the :py:class:`Rule constructor <pysb.core.Rule>` takes a
+name, a :py:class:`RuleExpression <pysb.core.RuleExpression>` containing the
+reactant and product patterns (more on that below) and one or two ``Parameter``
+objects for the rate constants. It also takes several optional boolean flags as
+keyword arguments which alter the behavior of the rule in certain ways.
 
-.. todo - describe flags somewhere and reference it here
+For now, we will write a very simple rule specifying the (irreversible) binding
+of Raf and MEK::
 
+    Rule('Raf_binds_MEK_at_s218',
+         Raf(k=None) + MEK(s218=None) >> Raf(k=1) % MEK(s218=1),
+         kf)
 
+Reading this rule in words, this rule says that "when Raf is unbound at its
+site k (i.e., its kinase catalytic site), and MEK is unbound at site s218
+(i.e., serine 218), the two proteins bind two each other using those two
+sites at the rate defined by the parameter kf."
 
+There are several things to note about the syntax for specifying rules:
 
-Rules, as described in this section, comprise the basic elements of
-procedural instructions that encode biochemical interactions. In its
-simplest form a rule is a chemical reaction that can be made general
-to a range of monomer states or very specific to only one kind of
-monomer in one kind of state. We follow the style for writing rules as
-described in `BioNetGen`_ but the style proposed by `Kappa`_ is quite
-similar with only some differences related to the implementation
-details (e.g. mass-action vs. stochastic simulations, compartments or
-no compartments, etc). We will write two rules to represent the
-interaction between the reactants and the products in a two-step
-manner.
+* A rule has two parts, a left hand side specifying the reactant(s) (e.g.,
+  ``Raf(k=None) + MEK(s218=None)``) and a right hand side specifying the
+  product(s) (e.g., ``Raf(k=1) % MEK(s218=1)``). The two sides are separated by
+  an operator, either ``>>``, specifying an irreversible reaction, or ``<>``,
+  specifying a reversible reaction. The expression in its entirety is
+  represented by an instance of :py:class:`RuleExpression
+  <pysb.core.RuleExpression>`.
 
-The general pattern for a rule consists of the statement *Rule* and in
-parenthesis a series of statements separated by commas, namely the
-rule name (string), the rule interactions, and the rule
-parameters. The rule interactions make use of the following
-operators::
+* Reactants and products are built up by listing the molecules involved, along
+  with the conditions on the states of their sites (bound/unbound,
+  phosphorylated/unphosphorylated, etc.). For example, ``Raf(k=None)``
+  specifies Raf unbound at its site k (more on this syntax below). When
+  multiple reactant molecules are involved, they are separated by the operator
+  ``+``.  Rules will most commonly involve only one or two molecules or
+  complexes as reactants, resulting in first- or second-order reaction
+  kinetics, respectively.
 
-   *+* operator to represent complexation 
-   *<>* operator to represent backward/forward reaction
-   *>>* operator to represent forward-only reaction
-   *%* operator to represent a binding interaction between two species
+* The properties of a molecule involved in a reaction (i.e., binding or
+  modification states) are specified by listing the states of its various sites
+  using Python's syntax for keyword arguments to functions: ``Raf(k=None)``,
+  ``MEK(s218=None)``. (For those interested in the implementation details, this
+  is because the site states are in fact passed as Python keyword arguments to
+  the overloaded ``__call__`` method of :py:class:`pysb.core.Monomer` or
+  :py:class:`pysb.core.MonomerPattern` ).
 
-To illustrate the use of the operators and the rule syntax we write
-the complex formation reaction with labels illustrating the parts of
-the rule::
+* Just as in BNGL and Kappa, the formation of a "bond" between two complexes is
+  indicated by associating a particular bond number (e.g., ``1``) with the sites
+  participating in that bond, e.g., ``Raf(k=1) % MEK(s218=1)``. A site that is
+  unbound is specified by the Python literal ``None``.
 
-   Rule('C8_Bid_bind', C8(b=None) + Bid(b=None, S='u') <> C8(b=1) % Bid(b=1, S='u'), *[kf, kr]) 
-	     |              |     |           |         |     |    |     |             |
-             |              |     |           |         |     |    |     |            parameter list
-	     |              |     |           |         |     |    |     |
-	     |              |     |           |         |     |    |    bound species
-	     |              |     |           |         |     |    |
-	     |		    |     |           |         |     |   binding operator
-	     |              |     |           |         |     |
-	     |              |     |           |         |    bound species
-	     |              |     |           |         |
-	     |		    |     |           |        forward/backward operator
-	     |              |     |           |
-	     |		    |     |          unbound species
-	     |              |     |
-	     |		    |    complexation / addition operator
-	     |              |
-	     |		   unbound species
-	    rule name
+.. note:: n-ary binding in BNGL but not Kappa
 
-The *rule name* can be any string and should be enclosed in single (')
-or double (") quotation marks. The species are *instances* of the
-mononmers in a specific state. In this case we are requiring that *C8*
-and *Bid* are both unbound, as we would not want any binding to occur
-with species that are previously bound. The *complexation* or
-*addition* operator tells the program that the two species are being
-added, that is, undergoing a transition, to form a new species as
-specified on the right side of the rule. The forward/backward
-operator states that the reaction is reversible. Finally the *binding*
-operator indicates that there is a bond formed between two or more
-species. This is indicated by the matching integer (in this case *1*)
-in the bonding site of both species along with the *binding*
-operator. If a non-reversible rule is desired, then the *forward-only*
-operator can be relplaced for the *forward/backward* operator. 
+    BNGL allows more than two sites to participate in a single bond, whereas
+    Kappa restricts a bond to a connection between two sites. A PySB model
+    specifying bonds between more than one site can be rendered as BNGL but not
+    Kappa.
 
-In order to actually change the state of the Bid protein we must now
-edit the monomer so that have an acutal state site as follows::
+* The ``%`` operator (for example, in the expression ``Raf(k=1) % MEK(s218=1)``,
+  indicates that Raf and MEK are bound to the same complex, that is, they are
+  partof the same molecular complex. This is identical to the complexation
+  operator ``.`` in BNGL.
 
-   Monomer('Bid', ['b', 'S'], {'S':['u', 't']})
+.. note:: Specifying complexes in BNGL vs. Kappa
 
-Having added the state site we can now further specify the state of
-the Bid protein whe it undergoes rule-based interactions and
-explicitly indicate the changes of the protein state.  
+    Unlike BNGL, Kappa does not use the ``.`` operator to specify complexes;
+    the connections between molecules in multimeric complexes are denoted
+    exclusively by the arrangement of the bonds.  When PySB rules are used to
+    generate Kappa rather than BNGL, the ``%`` operator (which is translated to
+    ``.`` in BNGL) is simply ignored. A discussion on the pros and cons of the
+    use of the complexation operator in rule-based modeling is outside the
+    scope of this tutorial.
 
-With this state site added, we can now go ahead and write the rules
-that will account for the binding step and the unbinding step as
-follows::
+* The rate constant for the reaction is specified by passing a ``Parameter``
+  for the rule, in this case ``kf``.
 
-   Rule('C8_Bid_bind', C8(b=None) + Bid(b=None, S='u') <>C8(b=1) % Bid(b=1, S='u'), kf, kr)
-   Rule('tBid_from_C8Bid', C8(b=1) % Bid(b=1, S='u') >> C8(b=None) % Bid(b=None, S='t'), kc)
+That covers the syntax! Add the binding rule to our ``tutorial_c`` model file
+to create ``tutorial_d.py``:
 
-As shown, the initial reactants, *C8* and *Bid* initially in the
-unbound state and, for Bid, in the 'u' state, undergo a complexation
-reaction and further a dissociation reaction to return the original
-*C8* protein and the *Bid* protein but now in the 't' state,
-indicating its truncation. Make these additions to your
-:file:`mymodel.py` file. After you are done, your file should look
-like this:
+.. literalinclude:: ../pysb/examples/tutorial_d.py
 
-.. literalinclude:: examples/mymodel3.py
+.. note:: Don't care, don't write!
 
-Once you are done editing your file, start your *ipython* (or
-*python*) interpreter and type the commands at the prompts below. Once
-you load your model you should be able to probe and check that you
-have the correct monomers, parameters, and rules. Your output should
-be very similar to the one presented (output shown below the ``'>>>'``
-python prompts).::
+    At this point it's worth pointing out a defining characteristic of
+    rule-based modeling, known as "don't care, don't write." What this means
+    is that a rule specifies only as much information about the molecules as
+    necessary for defining the interaction. In the case of our ``tutorial_d``
+    example above, note that the binding rule we've specified doesn't say
+    anything about the the state of serine 222--whether it is
+    bound or unbound, phosphorylated or unphosphorylated. This is because
+    we've modeled the binding at serine 218 as independent of the
+    state of serine 222--that is, for the purpose of this interaction,
+    we *don't care* about serine 222, so we *don't write* anything about it.
 
-   >>> import mymodel as m
-   >>> m.model.monomers
-      {'C8': Monomer(name='C8', sites=['b'], site_states={}),
-      'Bid': Monomer(name='Bid', sites=['b', 'S'], site_states={'S': ['u', 't']})}
-   >>> model.parameters
-      {'kf': Parameter(name='kf', value=1.0e-07),
-       'kr': Parameter(name='kr', value=1.0e-03),
-       'kc': Parameter(name='kc', value=1.0    )}
-   >>> m.model.rules
-      {'C8_Bid_bind': Rule(name='C8_Bid_bind', reactants=C8(b=None) +
-      Bid(b=None, S='u'), products=C8(b=1) % Bid(b=1, S='u'),
-      rate_forward=Parameter(name='kf', value=1.0e-07),
-      rate_reverse=Parameter(name='kr', value=1.0e-03)),
-      'tBid_from_C8Bid': Rule(name='tBid_from_C8Bid', reactants=C8(b=1) %
-      Bid(b=1, S='u'u), products=C8(b=None) + Bid(b=None, S=t),
-      rate_forward=Parameter(name='kc', value=1.0))}
+    A chief benefit of rule-based modeling is precisely this ability to specify
+    interactions with a strictly local context. Molecular interactions
+    involving many independent post-translational modifications or binding
+    partners can thus be expressed very compactly, preventing the modeler from
+    grappling with the 'combinatorial explosion' of distinct molecular species
+    that can arise in these situations.
 
-With this we are almost ready to run a simulation, all we need now is
-to specify the initial conditions of the system.
+    For more background on the benefits and applications of rule-based
+    modeling, refer to the review articles and tutorial in the :ref:`References
+    <useful_references>`.
+
+Now that we've got our model, let's explore the ``rules`` container::
+
+    >>> from pysb.examples.tutorial_d import model
+    >>> model.rules
+    ComponentSet([
+     Rule('Raf_binds_Mek_at_s218', Raf(k=None) + MEK(s218=None) >> Raf(k=1) % MEK(s218=1), kf),
+     ])
+    >>> r = model.rules[0]
+    >>> r.reactant_pattern
+    Raf(k=None) + MEK(s218=None)
+    >>> r.product_pattern
+    Raf(k=1) % MEK(s218=1)
+    >>> r.rate_forward
+    Parameter('kf', 1e-05)
+
+We are almost ready to run a simulation--but first we have to specify the
+initial conditions of the system.
 
 Observables
 -----------
