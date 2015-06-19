@@ -253,6 +253,12 @@ class Sensitivity(object):
             func = sympy.lambdify(obs_names, expr_subs, "np")
             self.yexpr[expr.name] = func(**obs_dict)
 
+        # Create the sensitivity matrix as a view on the original ydot array
+        # Get only the sensitivity entries and transpose so tspan is last
+        # dimension:
+        self.ysens = self.y[:, len(model.odes):].T.reshape(
+                       (len(model.odes), len(model.parameters), len(self.tspan)))
+
 def exp_decay_model():
     Model()
     Monomer('A', [])
