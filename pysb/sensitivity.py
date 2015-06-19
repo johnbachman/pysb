@@ -5,6 +5,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from pysb.bng import generate_equations
 import sympy
+import re
 
 class Sensitivity(object):
     """Calculate the sensitivity timecourses, dy(t)/dp.
@@ -52,19 +53,54 @@ class Sensitivity(object):
         # Prepare the sensitivity entries as a list of strings
         sdot_eqs_list = []
         (nrows, ncols) = sdot_matrix.shape
+        # We will start indexing the extended set of ODEs where we left off
+        # with the RHS odes:
+        sdot_cur_ix = len(model.odes)
         for i in range(nrows):
             for j in range(ncols):
                 entry = sdot_matrix[i, j]
                 # Skip zero entries in the sensitivity matrix
                 if entry == 0:
                     continue
-                sdot_eq_str = 'sdot[%d, %d] = %s;' % (i, j, sympy.ccode(entry))
+                # Replace sens_xxx_xxx with y[i], where i is the appropriate
+                # index for this ydot equation:
+                sdot_eq_rhs = re.sub(r'sens_\d+_\d+', 'y[%d]' % sdot_cur_ix,
+                                     sympy.ccode(entry))
+                sdot_eq_str = 'ydot[%d] = %s;' % (sdot_cur_ix, sdot_eq_rhs)
+                #sdot_eq_str = 'sdot[%d, %d] = %s;' % (i, j, sympy.ccode(entry))
                 sdot_eqs_list.append(sdot_eq_str)
+                # Increment the sdot index
+                sdot_cur_ix += 1
+        # We'll need to know how many equations there are in total to
+        # initialize the y and ydot vectors correctly
+        num_eqns = sdot_cur_ix
         code_eqs += eqn_substitutions(model, '\n'.join(sdot_eqs_list))
 
+        # Test inline
+        Solver._test_inline()
+        # If we can't use weave.inline to run the C code, compile it as Python
+        # code instead for use with exec. Note: C code with array indexing,
+        # basic math operations, and pow() just happens to also be valid
+        # Python.  If the equations ever have more complex things in them, this
+        # might fail.
+        if not Solver._use_inline:
+            code_eqs_py = compile(code_eqs, '<%s odes>' % model.name, 'exec')
+        else:
+            for arr_name in ('ydot', 'y', 'p'):
+                macro = arr_name.upper() + '1'
+                code_eqs = re.sub(r'\b%s\[(\d+)\]' % arr_name,
+                                  '%s(\\1)' % macro, code_eqs)
+
         print code_eqs
-        # Next:
-        # 3. Create an inline function with macros for YDOT1 and SDOT2
+        def rhs(t, y, p):
+            ydot = self.ydot
+            # note that the evaluated code sets ydot as a side effect
+            if Solver._use_inline:
+                inline(code_eqs, ['ydot', 't', 'y', 'p']);
+            else:
+                exec code_eqs_py in locals()
+            return ydot
+
         # 4. Create run method, analogous to Solver
         #    (alternatively, create Solver object and fill in functions, fields)
         # 5. Integrate and return results, plot
