@@ -75,6 +75,34 @@ def get_jacobian_matrix(model):
                         lambda i, j: sympy.diff(model.odes[i], species_names[j]))
     return jac_matrix
 
+def eqn_substitutions(model, eqns):
+    """String substitutions on the sympy C code for the ODE RHS and
+    Jacobian functions to use appropriate terms for variables and
+    parameters."""
+    # Substitute 'y[i]' for 'si'
+    eqns = re.sub(r's(\d+)',
+                  lambda m: 'y[%s]' % (int(m.group(1))), eqns)
+    # Substitute expanded parameter formulas for any named expressions
+    for e in model.expressions:
+        eqns = re.sub(r'\b(%s)\b' % e.name,
+                      sympy.ccode(e.expand_expr()), eqns)
+    # Substitute 'p[i]' for any named parameters
+    for i, p in enumerate(model.parameters):
+        eqns = re.sub(r'\b(%s)\b' % p.name, 'p[%d]' % i, eqns)
+    return eqns
+
+def get_model_odes_as_str(model):
+    # Generate the equations if we haven't already
+    if not model.odes:
+        pysb.bng.generate_equations()
+    # Prepare the string representations of the RHS equations
+    code_eqs = '\n'.join(['ydot[%d] = %s;' %
+                          (i, sympy.ccode(model.odes[i]))
+                          for i in range(len(model.odes))])
+    # Make substitutions for y[i] and si
+    code_eqs = eqn_substitutions(model, code_eqs)
+    return code_eqs
+
 class Solver(object):
     """An interface for numeric integration of models.
 
@@ -158,6 +186,7 @@ class Solver(object):
         # We'll need to know if we're using the Jacobian when we get to run()
         self._use_analytic_jacobian = use_analytic_jacobian        
         # Generate the equations for the model
+<<<<<<< e588e3ade16bb6071307d6b0718525cf9daaf0fa
         pysb.bng.generate_equations(self.model, cleanup, self.verbose)
 
         def eqn_substitutions(eqns):
@@ -199,6 +228,12 @@ class Solver(object):
                               for i in range(len(self.model.odes))])
         code_eqs = eqn_substitutions(code_eqs)
 
+=======
+        pysb.bng.generate_equations(model)
+        # Get the model ODE RHS as a string
+        code_eqs = get_model_odes_as_str(model)
+        # Test inline
+>>>>>>> Move eqn substitutions to top-level function
         Solver._test_inline()
 
         # If we can't use weave.inline to run the C code, compile it as Python code instead for use with
@@ -237,9 +272,10 @@ class Solver(object):
                     # Skip zero entries in the Jacobian
                     if entry == 0:
                         continue
-                    jac_eq_str = 'jac[%d, %d] = %s;' % (i, j, sympy.ccode(entry))
+                    jac_eq_str = 'jac[%d, %d] = %s;' % \
+                                 (i, j, sympy.ccode(entry))
                     jac_eqs_list.append(jac_eq_str)
-            jac_eqs = eqn_substitutions('\n'.join(jac_eqs_list))
+            jac_eqs = eqn_substitutions(model, '\n'.join(jac_eqs_list))
 
             # Try to inline the Jacobian if possible (as above for RHS)
             if not Solver._use_inline:
