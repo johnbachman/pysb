@@ -8,6 +8,7 @@ import sympy
 import re
 import itertools
 from scipy.integrate import ode
+from scipy.weave import inline
 
 class Sensitivity(object):
     """Calculate the sensitivity timecourses, dy(t)/dp.
@@ -102,7 +103,7 @@ class Sensitivity(object):
         # basic math operations, and pow() just happens to also be valid
         # Python.  If the equations ever have more complex things in them, this
         # might fail.
-        if not Solver._use_inline:
+        if True: #not Solver._use_inline:
             code_eqs_py = compile(code_eqs, '<%s odes>' % model.name, 'exec')
         else:
             for arr_name in ('ydot', 'y', 'p'):
@@ -114,7 +115,7 @@ class Sensitivity(object):
         def rhs(t, y, p):
             ydot = self.ydot
             # note that the evaluated code sets ydot as a side effect
-            if Solver._use_inline:
+            if False: #Solver._use_inline:
                 inline(code_eqs, ['ydot', 't', 'y', 'p']);
             else:
                 exec code_eqs_py in locals()
@@ -157,9 +158,12 @@ class Sensitivity(object):
         # Initialize an instance of scipy.integrate.ode
         self.integrator = ode(rhs).set_integrator(integrator, **options)
 
-        # 3. Initialize variables appropriately
-        # 4. Create run method, analogous to Solver
-        #    (alternatively, create Solver object and fill in functions, fields)
+        # 4.5 Calculate appropriate initial values for the s0 (dy0/dpi)
+        #   - Iterate over all initial conditions
+        #   - For each initial condition, find species index
+        #   - For each parameter, find parameter index
+        #   - Get index i for y0[i] for the sensitivity of y[spec_ix] to p[j]
+        #   - Set initial value of that y0[i] entry to 1?
         # 5. Integrate and return results, plot
         # 6. Simplify sensitivity equations by only including 
 
@@ -172,9 +176,106 @@ class Sensitivity(object):
         print s_matrix.__repr__()
         print sdot_matrix.__repr__()
 
+    # FIXME FIXME Copy-pasted from Solver
+    def run(self, param_values=None, y0=None):
+        """Perform an integration.
 
-if __name__ == '__main__':
+        Returns nothing; access the Solver object's ``y``, ``yobs``, or
+        ``yobs_view`` attributes to retrieve the results.
 
+        Parameters
+        ----------
+        param_values : vector-like, optional
+            Values to use for every parameter in the model. Ordering is
+            determined by the order of model.parameters. If not specified,
+            parameter values will be taken directly from model.parameters.
+        y0 : vector-like, optional
+            Values to use for the initial condition of all species. Ordering is
+            determined by the order of model.species. If not specified, initial
+            conditions will be taken from model.initial_conditions (with initial
+            condition parameter values taken from `param_values` if specified).
+        """
+
+        if param_values is not None:
+            # accept vector of parameter values as an argument
+            if len(param_values) != len(self.model.parameters):
+                raise Exception("param_values must be the same length as "
+                                "model.parameters")
+            if not isinstance(param_values, np.ndarray):
+                param_values = np.array(param_values)
+        else:
+            # create parameter vector from the values in the model
+            param_values = np.array([p.value for p in self.model.parameters])
+
+        subs = dict((p, param_values[i])
+                    for i, p in enumerate(self.model.parameters))
+        if y0 is not None:
+            # accept vector of initial values as an argument
+            if len(y0) != self.y.shape[1]:
+                raise Exception("y0 must be the same length as y")
+            if not isinstance(y0, np.ndarray):
+                y0 = np.array(y0)
+        else:
+            y0 = np.zeros((self.y.shape[1],))
+            for cp, value_obj in self.model.initial_conditions:
+                if value_obj in self.model.parameters:
+                    pi = self.model.parameters.index(value_obj)
+                    value = param_values[pi]
+                elif value_obj in self.model.expressions:
+                    value = value_obj.expand_expr().evalf(subs=subs)
+                else:
+                    raise ValueError("Unexpected initial condition value type")
+                si = self.model.get_species_index(cp)
+                if si is None:
+                    raise Exception("Species not found in model: %s" % repr(cp))
+                y0[si] = value
+
+        # perform the actual integration
+        self.integrator.set_initial_value(y0, self.tspan[0])
+        # Set parameter vectors for RHS func and Jacobian
+        self.integrator.set_f_params(param_values)
+        self.y[0] = y0
+        i = 1
+        while (self.integrator.successful() and
+               self.integrator.t < self.tspan[-1]):
+            self.y[i] = self.integrator.integrate(self.tspan[i])
+            i += 1
+        if self.integrator.t < self.tspan[-1]:
+            self.y[i:, :] = 'nan'
+
+        for i, obs in enumerate(self.model.observables):
+            self.yobs_view[:, i] = \
+                (self.y[:, obs.species] * obs.coefficients).sum(1)
+        obs_names = self.model.observables.keys()
+        obs_dict = dict((k, self.yobs[k]) for k in obs_names)
+        for expr in self.model.expressions_dynamic():
+            expr_subs = expr.expand_expr().subs(subs)
+            func = sympy.lambdify(obs_names, expr_subs, "np")
+            self.yexpr[expr.name] = func(**obs_dict)
+
+def exp_decay_model():
+    Model()
+    Monomer('A', [])
+    Rule('A_deg', A() >> None, Parameter('k', 0.01))
+    Initial(A(), Parameter('A_0', 100))
+    Observable('A_', A())
+    t = np.linspace(0, 500, 100)
+    sens = Sensitivity(model, t)
+    sens.run()
+
+    plt.figure()
+    plt.subplot(2, 2, 1)
+    plt.plot(t, sens.yobs['A_'])
+    plt.title('A')
+    plt.subplot(2, 2, 3)
+    plt.plot(t, sens.y[:, 3])
+    plt.title('Sens A to k')
+    plt.subplot(2, 2, 4)
+    plt.plot(t, sens.y[:, 4])
+    plt.title('Sens A to A0')
+    import ipdb; ipdb.set_trace()
+
+def mrna_protein_model():
     # Create an mRNA + Protein model
     Model()
     Monomer('m', []) # mRNA
@@ -186,21 +287,20 @@ if __name__ == '__main__':
     # Initial conditions
     Observable('m_', m())
     Observable('p_', p())
-    """
-    Monomer('A', [])
-    Rule('A_deg', A() >> None, Parameter('k', 0.01))
-    Initial(A(), Parameter('A_0'))
-    Observable('A_', A())
-    """
 
     t = np.linspace(0, 500, 100)
-    #sens = Sensitivity(model, t, observables=[m_], parameters=[k1, k2])
     sens = Sensitivity(model, t)
+    sens.run()
 
-    #sol = Solver(model, t)
-    #sol.run()
-    #plt.ion()
-    #plt.figure()
-    #plt.plot(t, sol.yobs['m_'], label='mRNA')
-    #plt.plot(t, sol.yobs['p_'], label='Protein')
-    #plt.legend(loc='lower right')
+    plt.figure()
+    plt.subplot(1, 2, 1)
+    plt.plot(t, sol.yobs['m_'], label='mRNA')
+    plt.title('mRNA')
+    plt.subplot(1, 2, 2)
+    plt.plot(t, sol.yobs['p_'], label='Protein')
+    plt.title('mRNA')
+
+if __name__ == '__main__':
+
+    plt.ion()
+    exp_decay_model()
