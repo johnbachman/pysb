@@ -1,3 +1,9 @@
+# TODO TODO TODO
+# Put together sensitivity equations for observables
+# 4.5 Calculate derivs of initial conditions for exprs
+# 6. Simplify sensitivity equations by only including 
+# TODO TODO TODO
+
 from pysb import *
 from pysb.integrate import Solver, get_jacobian_matrix, get_model_odes_as_str,\
                            eqn_substitutions, default_integrator_options
@@ -158,10 +164,6 @@ class Sensitivity(object):
         # Initialize an instance of scipy.integrate.ode
         self.integrator = ode(rhs).set_integrator(integrator, **options)
 
-        # 4. Show analytical solutions for exp decay
-        # 4.5 Calculate derivs of initial conditions for exprs
-        # 5. Integrate and return results, plot
-        # 6. Simplify sensitivity equations by only including 
 
         # Print TODO
         print model.species
@@ -260,36 +262,55 @@ class Sensitivity(object):
 
 def exp_decay_model():
     Model()
-    Monomer('A', [])
-    Rule('A_deg', A() >> None, Parameter('k', 0.01))
-    Initial(A(), Parameter('A_0', 100))
-    Observable('A_', A())
+    Monomer('A', ['s'], {'s': ['on', 'off']})
+    Rule('A_deg', A(s='on') >> A(s='off'), Parameter('k', 0.01))
+    Initial(A(s='on'), Parameter('A_0', 100))
+    Observable('A_on', A(s='on'))
+    Observable('A_off', A(s='off'))
+    Observable('A_tot', A())
     t = np.linspace(0, 500, 100)
     sens = Sensitivity(model, t)
     sens.run()
-    # Analytical solutions
+    # Analytical solutions for A(s='on')
     y = A_0.value * np.exp(-k.value * t)
     dydk = A_0.value * -t * np.exp(-k.value * t)
     dydA0 = np.exp(-k.value * t)
     plt.figure()
-    # A
-    plt.subplot(2, 2, 1)
-    plt.plot(t, sens.yobs['A_'], linewidth=2, label='integr')
+    # A_on
+    plt.subplot(1, 2, 1)
+    plt.plot(t, sens.yobs['A_on'], linewidth=2, label='integr')
     plt.plot(t, y, linewidth=2, color='r', linestyle='--', label='analyt')
     plt.legend(loc='upper right')
-    plt.title('A')
-    # dy/dk
-    plt.subplot(2, 2, 3)
+    plt.title('A_on')
+    # A_off
+    plt.subplot(1, 2, 2)
+    plt.plot(t, sens.yobs['A_off'], linewidth=2, label='integr')
+    plt.legend(loc='lower right')
+    plt.title('A_off')
+
+    plt.figure()
+    # dA_on/dk
+    plt.subplot(2, 2, 1)
     plt.plot(t, sens.ysens[0, 0], linewidth=2, label='integr')
     plt.plot(t, dydk, linewidth=2, color='r', linestyle='--', label='analyt')
     plt.legend(loc='lower right')
-    plt.title('Sens of A to k')
-    # dy/dA0
-    plt.subplot(2, 2, 4)
+    plt.title('Sens of A_on to k')
+    # dA_on/dA0
+    plt.subplot(2, 2, 2)
     plt.plot(t, sens.ysens[0, 1], linewidth=2, label='integr')
     plt.plot(t, dydA0, linewidth=2, color='r', linestyle='--', label='analyt')
     plt.legend(loc='upper right')
-    plt.title('Sens of A to A0')
+    plt.title('Sens of A_on to A0')
+    # dA_off/dk
+    plt.subplot(2, 2, 3)
+    plt.plot(t, sens.ysens[1, 0], linewidth=2, label='integr')
+    plt.legend(loc='upper right')
+    plt.title('Sens of A_off to k')
+    # dA_on/dA0
+    plt.subplot(2, 2, 4)
+    plt.plot(t, sens.ysens[1, 1], linewidth=2, label='integr')
+    plt.legend(loc='lower right')
+    plt.title('Sens of A_off to A0')
 
     import ipdb; ipdb.set_trace()
 
