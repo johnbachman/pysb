@@ -1,11 +1,13 @@
 from pysb import *
 from pysb.integrate import Solver, get_jacobian_matrix, get_model_odes_as_str,\
-                           eqn_substitutions
+                           eqn_substitutions, default_integrator_options
 import numpy as np
 from matplotlib import pyplot as plt
 from pysb.bng import generate_equations
 import sympy
 import re
+import itertools
+from scipy.integrate import ode
 
 class Sensitivity(object):
     """Calculate the sensitivity timecourses, dy(t)/dp.
@@ -22,7 +24,8 @@ class Sensitivity(object):
         The parameters to perform sensitivity analysis against.
     """
 
-    def __init__(self, model, t, observables=None, parameters=None):
+    def __init__(self, model, tspan, observables=None, parameters=None,
+                 integrator='vode', **integrator_options):
         # For each column s_i(t) in the sensitivity matrix,
         # s_i'(t) = J * s_i(t) + dy'(t)/dp
         # where J is the Jacobian matrix and dy'(t)/dp_i is the derivative
@@ -55,7 +58,7 @@ class Sensitivity(object):
         (nrows, ncols) = sdot_matrix.shape
         # A dict to keep track of the ydot vector index for the sensitivity
         # matrix entry  at i, j
-        sdot_ix_map = {}
+        self.sdot_ix_map = {}
         # We will start indexing the extended set of ODEs where we left off
         # with the RHS odes:
         sdot_cur_ix = len(model.odes)
@@ -77,7 +80,7 @@ class Sensitivity(object):
                 #sdot_eq_str = 'sdot[%d, %d] = %s;' % (i, j, sympy.ccode(entry))
                 sdot_eqs_list.append(sdot_eq_str)
                 # Keep track of the vector index for this (i, j) entry
-                sdot_ix_map[(i, j)] = sdot_cur_ix
+                self.sdot_ix_map[(i, j)] = sdot_cur_ix
                 # Increment the sdot index
                 sdot_cur_ix += 1
         # We'll need to know how many equations there are in total to
@@ -87,8 +90,8 @@ class Sensitivity(object):
         # index for this ydot equation:
         sdot_eqs = '\n'.join(sdot_eqs_list)
         sdot_eqs = re.sub(r'sens_(\d+)_(\d+)',
-                          lambda m: 'y[%s]' % sdot_ix_map[(int(m.group(1)),
-                                                           int(m.group(2)))],
+                          lambda m: 'y[%s]' % \
+                             self.sdot_ix_map[(int(m.group(1)), int(m.group(2)))],
                           sdot_eqs)
         code_eqs += eqn_substitutions(model, sdot_eqs)
 
@@ -117,14 +120,48 @@ class Sensitivity(object):
                 exec code_eqs_py in locals()
             return ydot
 
+        # FIXME FIXME FIXME
+        # From here down is nearly a complete copy paste of Solver;
+        # The difference is that the y and ydot arrays are of size
+        # num_eqns rather than len(model.species)
+        # FIXME FIXME FIXME
+        # build integrator options list from our defaults and any kwargs passed
+        # to this function
+        options = {}
+        try:
+            options.update(default_integrator_options[integrator])
+        except KeyError as e:
+            pass
+        options.update(integrator_options)
+
+        # Initialize variables
+        self.model = model
+        self.tspan = tspan
+        self.y = np.ndarray((len(tspan), num_eqns))
+        self.ydot = np.ndarray(num_eqns)
+        # Initialize record array for observable timecourses
+        if len(model.observables):
+            self.yobs = np.ndarray(len(tspan), zip(model.observables.keys(),
+                                                      itertools.repeat(float)))
+        else:
+            self.yobs = np.ndarray((len(tspan), 0))
+        # Initialize view of observables record array
+        self.yobs_view = self.yobs.view(float).reshape(len(self.yobs), -1)
+        # Initialize array for expression timecourses
+        exprs = model.expressions_dynamic()
+        if len(exprs):
+            self.yexpr = np.ndarray(len(tspan), zip(exprs.keys(),
+                                                       itertools.repeat(float)))
+        else:
+            self.yexpr = np.ndarray((len(tspan), 0))
+        # Initialize an instance of scipy.integrate.ode
+        self.integrator = ode(rhs).set_integrator(integrator, **options)
+
+        # 3. Initialize variables appropriately
         # 4. Create run method, analogous to Solver
         #    (alternatively, create Solver object and fill in functions, fields)
         # 5. Integrate and return results, plot
-        #
-        # Q. Make faster by calculating the Jacobian of the extended system?
-        #    Probably not, as this would be huge, and CVODES wouldn't use it.
         # 6. Simplify sensitivity equations by only including 
-        # 5. 
 
         # Print TODO
         print model.species
