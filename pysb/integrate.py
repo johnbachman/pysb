@@ -55,27 +55,24 @@ def get_jacobian_matrix(model):
 
     Returns
     -------
-    list of lists of Sympy expressions.
-        The rows of list of lists by equation f_i, with columns giving the
-        derivative of the f_i by the variable x_j:
+    sympy.Matrix of Sympy expressions.
+        The rows of the Matrix are by RHS equation f_i, with columns giving the
+        derivative of the f_i by the species s_j:
 
-            [[df1/x1, df1/x2, ..., df1/xn],
+            [[df1/s1, df1/s2, ..., df1/sn],
              [   ...                     ],
-             [dfn/x1, dfn/x2, ..., dfn/xn]]
+             [dfn/s1, dfn/s2, ..., dfn/sn]]
     """
     # Generate the equations if we haven't already
     if not model.odes:
         pysb.bng.generate_equations()
+    # Calculate the Jacobian using Sympy
     species_names = ['s%d' % i for i in range(len(model.species))]
-    jac_matrix = []
-    for eqn in model.odes:
-        # Derivatives for f_i...
-        jac_row = [] 
-        for species_name in species_names:
-            # ... with respect to s_j
-            d = sympy.diff(eqn, species_name)
-            jac_row.append(d)
-        jac_matrix.append(jac_row)
+    # Note: for some reason the built-in Sympy method, of simply doing
+    # jac_matrix = sympy.Matrix(model.odes).jacobian(species_names)
+    # didn't work on the EARM model. But this does.
+    jac_matrix = sympy.Matrix(len(model.odes), len(species_names),
+                        lambda i, j: sympy.diff(model.odes[i], species_names[j]))
     return jac_matrix
 
 class Solver(object):
@@ -233,13 +230,14 @@ class Solver(object):
             jac_matrix = get_jacobian_matrix(model)
             # Next, prepare the stringified Jacobian equations
             jac_eqs_list = []
-            for i, row in enumerate(jac_matrix):
-                for j, entry in enumerate(row):
+            (nrows, ncols) = jac_matrix.shape
+            for i in range(nrows):
+                for j in range(ncols):
+                    entry = jac_matrix[i, j]
                     # Skip zero entries in the Jacobian
                     if entry == 0:
                         continue
-                    jac_eq_str = 'jac[%d, %d] = %s;' % \
-                                 (i, j, sympy.ccode(entry))
+                    jac_eq_str = 'jac[%d, %d] = %s;' % (i, j, sympy.ccode(entry))
                     jac_eqs_list.append(jac_eq_str)
             jac_eqs = eqn_substitutions('\n'.join(jac_eqs_list))
 
