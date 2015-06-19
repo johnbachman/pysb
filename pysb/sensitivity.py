@@ -103,7 +103,7 @@ class Sensitivity(object):
         # basic math operations, and pow() just happens to also be valid
         # Python.  If the equations ever have more complex things in them, this
         # might fail.
-        if True: #not Solver._use_inline:
+        if not Solver._use_inline:
             code_eqs_py = compile(code_eqs, '<%s odes>' % model.name, 'exec')
         else:
             for arr_name in ('ydot', 'y', 'p'):
@@ -115,7 +115,7 @@ class Sensitivity(object):
         def rhs(t, y, p):
             ydot = self.ydot
             # note that the evaluated code sets ydot as a side effect
-            if False: #Solver._use_inline:
+            if Solver._use_inline:
                 inline(code_eqs, ['ydot', 't', 'y', 'p']);
             else:
                 exec code_eqs_py in locals()
@@ -158,12 +158,8 @@ class Sensitivity(object):
         # Initialize an instance of scipy.integrate.ode
         self.integrator = ode(rhs).set_integrator(integrator, **options)
 
-        # 4.5 Calculate appropriate initial values for the s0 (dy0/dpi)
-        #   - Iterate over all initial conditions
-        #   - For each initial condition, find species index
-        #   - For each parameter, find parameter index
-        #   - Get index i for y0[i] for the sensitivity of y[spec_ix] to p[j]
-        #   - Set initial value of that y0[i] entry to 1?
+        # 4. Show analytical solutions for exp decay
+        # 4.5 Calculate derivs of initial conditions for exprs
         # 5. Integrate and return results, plot
         # 6. Simplify sensitivity equations by only including 
 
@@ -271,17 +267,30 @@ def exp_decay_model():
     t = np.linspace(0, 500, 100)
     sens = Sensitivity(model, t)
     sens.run()
-
+    # Analytical solutions
+    y = A_0.value * np.exp(-k.value * t)
+    dydk = A_0.value * -t * np.exp(-k.value * t)
+    dydA0 = np.exp(-k.value * t)
     plt.figure()
+    # A
     plt.subplot(2, 2, 1)
-    plt.plot(t, sens.yobs['A_'])
+    plt.plot(t, sens.yobs['A_'], linewidth=2, label='integr')
+    plt.plot(t, y, linewidth=2, color='r', linestyle='--', label='analyt')
+    plt.legend(loc='upper right')
     plt.title('A')
+    # dy/dk
     plt.subplot(2, 2, 3)
-    plt.plot(t, sens.y[:, 3])
-    plt.title('Sens A to k')
+    plt.plot(t, sens.ysens[0, 0], linewidth=2, label='integr')
+    plt.plot(t, dydk, linewidth=2, color='r', linestyle='--', label='analyt')
+    plt.legend(loc='lower right')
+    plt.title('Sens of A to k')
+    # dy/dA0
     plt.subplot(2, 2, 4)
-    plt.plot(t, sens.y[:, 4])
-    plt.title('Sens A to A0')
+    plt.plot(t, sens.ysens[0, 1], linewidth=2, label='integr')
+    plt.plot(t, dydA0, linewidth=2, color='r', linestyle='--', label='analyt')
+    plt.legend(loc='upper right')
+    plt.title('Sens of A to A0')
+
     import ipdb; ipdb.set_trace()
 
 def mrna_protein_model():
@@ -303,10 +312,10 @@ def mrna_protein_model():
 
     plt.figure()
     plt.subplot(1, 2, 1)
-    plt.plot(t, sol.yobs['m_'], label='mRNA')
+    plt.plot(t, sol.yobs['m_'], label='mRNA', linewidth=2)
     plt.title('mRNA')
     plt.subplot(1, 2, 2)
-    plt.plot(t, sol.yobs['p_'], label='Protein')
+    plt.plot(t, sol.yobs['p_'], label='Protein', linewidth=2)
     plt.title('mRNA')
 
 if __name__ == '__main__':
