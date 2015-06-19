@@ -222,6 +222,8 @@ class Sensitivity(object):
                     pi = self.model.parameters.index(value_obj)
                     value = param_values[pi]
                 elif value_obj in self.model.expressions:
+                    raise Exception("Can't handle initial conditions from "
+                                    "expressions yet") # TODO TODO TODO
                     value = value_obj.expand_expr().evalf(subs=subs)
                 else:
                     raise ValueError("Unexpected initial condition value type")
@@ -229,6 +231,7 @@ class Sensitivity(object):
                 if si is None:
                     raise Exception("Species not found in model: %s" % repr(cp))
                 y0[si] = value
+                y0[self.sdot_ix_map[(si, pi)]] = 1.
 
         # perform the actual integration
         self.integrator.set_initial_value(y0, self.tspan[0])
