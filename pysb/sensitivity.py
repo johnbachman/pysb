@@ -53,28 +53,44 @@ class Sensitivity(object):
         # Prepare the sensitivity entries as a list of strings
         sdot_eqs_list = []
         (nrows, ncols) = sdot_matrix.shape
+        # A dict to keep track of the ydot vector index for the sensitivity
+        # matrix entry  at i, j
+        sdot_ix_map = {}
         # We will start indexing the extended set of ODEs where we left off
         # with the RHS odes:
         sdot_cur_ix = len(model.odes)
         for i in range(nrows):
             for j in range(ncols):
                 entry = sdot_matrix[i, j]
+                # TODO TODO TODO
+                # Can't skip zero entries easily, because other entries
+                # in the sensitivity matrix may refer to s_ij that are zero.
+                # Ideally, the fix would be to figure out which s_ij are zero,
+                # and then substitute those 0s into the equations so that some
+                # of the terms would disappear.
                 # Skip zero entries in the sensitivity matrix
-                if entry == 0:
-                    continue
-                # Replace sens_xxx_xxx with y[i], where i is the appropriate
-                # index for this ydot equation:
-                sdot_eq_rhs = re.sub(r'sens_\d+_\d+', 'y[%d]' % sdot_cur_ix,
-                                     sympy.ccode(entry))
-                sdot_eq_str = 'ydot[%d] = %s;' % (sdot_cur_ix, sdot_eq_rhs)
+                #if entry == 0:
+                #    continue
+                # TODO TODO TODO
+                sdot_eq_str = 'ydot[%d] = %s;' % (sdot_cur_ix,
+                                                  sympy.ccode(entry))
                 #sdot_eq_str = 'sdot[%d, %d] = %s;' % (i, j, sympy.ccode(entry))
                 sdot_eqs_list.append(sdot_eq_str)
+                # Keep track of the vector index for this (i, j) entry
+                sdot_ix_map[(i, j)] = sdot_cur_ix
                 # Increment the sdot index
                 sdot_cur_ix += 1
         # We'll need to know how many equations there are in total to
         # initialize the y and ydot vectors correctly
         num_eqns = sdot_cur_ix
-        code_eqs += eqn_substitutions(model, '\n'.join(sdot_eqs_list))
+        # Replace sens_xxx_xxx with y[i], where i is the appropriate
+        # index for this ydot equation:
+        sdot_eqs = '\n'.join(sdot_eqs_list)
+        sdot_eqs = re.sub(r'sens_(\d+)_(\d+)',
+                          lambda m: 'y[%s]' % sdot_ix_map[(int(m.group(1)),
+                                                           int(m.group(2)))],
+                          sdot_eqs)
+        code_eqs += eqn_substitutions(model, sdot_eqs)
 
         # Test inline
         Solver._test_inline()
@@ -124,7 +140,6 @@ if __name__ == '__main__':
 
     # Create an mRNA + Protein model
     Model()
-    """
     Monomer('m', []) # mRNA
     Monomer('p', []) # protein
     Rule('mrna_synth', None >> m(), Parameter('k1', 1.))
@@ -139,6 +154,7 @@ if __name__ == '__main__':
     Rule('A_deg', A() >> None, Parameter('k', 0.01))
     Initial(A(), Parameter('A_0'))
     Observable('A_', A())
+    """
 
     t = np.linspace(0, 500, 100)
     #sens = Sensitivity(model, t, observables=[m_], parameters=[k1, k2])
