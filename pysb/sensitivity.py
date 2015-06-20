@@ -150,10 +150,18 @@ class Sensitivity(object):
         if len(model.observables):
             self.yobs = np.ndarray(len(tspan), zip(model.observables.keys(),
                                                       itertools.repeat(float)))
+            # FIXME FIXME FIXME Could never get the view to work correctly
+            self.yobs_sens = np.ndarray((len(model.parameters), len(tspan)),
+                           zip(model.observables.keys(), itertools.repeat(float)))
+        # TODO TODO TODO What is purpose of this section?
         else:
             self.yobs = np.ndarray((len(tspan), 0))
+            self.yobs_sens = np.ndarray((0, len(model.parameters), len(tspan)))
         # Initialize view of observables record array
         self.yobs_view = self.yobs.view(float).reshape(len(self.yobs), -1)
+        # FIXME FIXME FIXME Could never get the view to work correctly
+        #self.yobs_sens_view = self.yobs_sens.view(float).reshape(
+        #              len(model.observables), len(model.parameters), len(tspan))
         # Initialize array for expression timecourses
         exprs = model.expressions_dynamic()
         if len(exprs):
@@ -164,7 +172,6 @@ class Sensitivity(object):
         # Initialize an instance of scipy.integrate.ode
         self.integrator = ode(rhs).set_integrator(integrator, **options)
 
-
         # Print TODO
         print model.species
         print model.parameters
@@ -173,6 +180,7 @@ class Sensitivity(object):
         print dfdp_matrix.__repr__()
         print s_matrix.__repr__()
         print sdot_matrix.__repr__()
+
 
     # FIXME FIXME Copy-pasted from Solver
     def run(self, param_values=None, y0=None):
@@ -229,6 +237,7 @@ class Sensitivity(object):
                 if si is None:
                     raise Exception("Species not found in model: %s" % repr(cp))
                 y0[si] = value
+                # TODO TODO TODO Take actual derivative
                 y0[self.sdot_ix_map[(si, pi)]] = 1.
 
         # perform the actual integration
@@ -259,6 +268,26 @@ class Sensitivity(object):
         # dimension:
         self.ysens = self.y[:, len(model.odes):].T.reshape(
                        (len(model.odes), len(model.parameters), len(self.tspan)))
+        # Create the sensitivity matrix of the observables
+        for i, obs in enumerate(self.model.observables):
+            # We don't need to bother multiplying by the observables coefficients
+            # if they are all ones!
+            if np.all(obs.coefficients == 1):
+                #self.yobs_sens_view[i, :, :] = \
+                #                self.ysens[obs.species, :, :].sum(axis=0)
+                self.yobs_sens[obs_name] = \
+                                self.ysens[obs.species, :, :].sum(axis=0)
+            else:
+                # FIXME FIXME FIXME
+                # There's got to be a better way to do this multiplication
+                # (i.e., without a for loop!)
+                for p_ix in range(len(model.parameters)):
+                    self.yobs_sens[obs.name][p_ix] = \
+                      (self.ysens[obs.species, p_ix, :].T *
+                                    obs.coefficients).sum(axis=1).T
+                    #self.yobs_sens_view[i, p_ix, :] = \
+                    #  (self.ysens[obs.species, p_ix, :].T *
+                    #                obs.coefficients).sum(axis=1).T
 
 def exp_decay_model():
     Model()
@@ -271,6 +300,7 @@ def exp_decay_model():
     t = np.linspace(0, 500, 100)
     sens = Sensitivity(model, t)
     sens.run()
+
     # Analytical solutions for A(s='on')
     y = A_0.value * np.exp(-k.value * t)
     dydk = A_0.value * -t * np.exp(-k.value * t)
@@ -288,6 +318,7 @@ def exp_decay_model():
     plt.legend(loc='lower right')
     plt.title('A_off')
 
+    # Sensitivity Plots
     plt.figure()
     # dA_on/dk
     plt.subplot(2, 2, 1)
@@ -311,8 +342,7 @@ def exp_decay_model():
     plt.plot(t, sens.ysens[1, 1], linewidth=2, label='integr')
     plt.legend(loc='lower right')
     plt.title('Sens of A_off to A0')
-
-    import ipdb; ipdb.set_trace()
+    return sens
 
 def mrna_protein_model():
     # Create an mRNA + Protein model
@@ -342,4 +372,4 @@ def mrna_protein_model():
 if __name__ == '__main__':
 
     plt.ion()
-    exp_decay_model()
+    sens = exp_decay_model()
