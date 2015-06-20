@@ -1,5 +1,5 @@
 # TODO TODO TODO
-# Put together sensitivity equations for observables
+# 4. Add back in calculations of sens.yobs and sens.yexpr!!!
 # 4.5 Calculate derivs of initial conditions for exprs
 # 6. Simplify sensitivity equations by only including 
 # TODO TODO TODO
@@ -361,15 +361,28 @@ def mrna_protein_model():
     sens = Sensitivity(model, t)
     sens.run()
 
+    """
     plt.figure()
     plt.subplot(1, 2, 1)
-    plt.plot(t, sol.yobs['m_'], label='mRNA', linewidth=2)
+    plt.plot(t, sens.yobs['m_'], label='mRNA', linewidth=2)
     plt.title('mRNA')
     plt.subplot(1, 2, 2)
     plt.plot(t, sol.yobs['p_'], label='Protein', linewidth=2)
     plt.title('mRNA')
+    """
+
+    plt.figure()
+    subplot_ix = 1
+    for obs_ix, obs_name in enumerate(['m_', 'p_']):
+        for p_ix in range(4):
+            plt.subplot(2, 4, subplot_ix)
+            plt.plot(t, sens.yobs_sens[obs_name][p_ix])
+            plt.title('%s, p%d' % (obs_name, p_ix))
+            subplot_ix += 1
 
 if __name__ == '__main__':
 
     plt.ion()
-    sens = exp_decay_model()
+    #sens = exp_decay_model()
+    sens = mrna_protein_model()
+
