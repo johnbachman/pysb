@@ -15,5 +15,5 @@ install:
   - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib nose sympy
   - wget http://bionetgen.googlecode.com/files/BioNetGen-2.2.5-stable.zip
   - unzip BioNetGen-2.2.5-stable.zip
-  - export BNGPATH=/home/travis/BioNetGen-2.2.5-stable
+  - export BNGPATH=`pwd`/BioNetGen-2.2.5-stable
 script: nosetests
