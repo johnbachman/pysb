@@ -2,18 +2,18 @@ language: python
 python:
   - "2.7"
   - "3.4"
-addons:
-  apt:
-    packages:
-      - libatlas-dev
-      - libatlas-base-dev
-      - liblapack-dev
-      - gfortran
-      - libgmp-dev
-      - libmpfr-dev
+sudo: false
+before_install:
+  # Getting scipy/numpy from Miniconda speeds up Travis builds,
+  # see https://gist.github.com/dan-blanchard/7045057
+  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH=/home/travis/miniconda/bin:$PATH
+  - conda update --yes conda
 install:
-  - pip install scipy sympy
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib nose
   - wget http://bionetgen.googlecode.com/files/BioNetGen-2.2.5-stable.zip
   - unzip BioNetGen-2.2.5-stable.zip
-  - sudo ln -s `pwd`/BioNetGen-2.2.5-stable /usr/local/share/BioNetGen
+  - export BNGPATH=/home/travis/BioNetGen-2.2.5-stable
 script: nosetests
