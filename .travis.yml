@@ -2,6 +2,15 @@ language: python
 python:
   - "2.7"
   - "3.4"
+addons:
+  apt:
+    packages:
+      - libatlas-dev
+      - libatlas-base-dev
+      - liblapack-dev
+      - gfortran
+      - libgmp-dev
+      - libmpfr-dev
 install:
   - pip install scipy sympy
   - wget http://bionetgen.googlecode.com/files/BioNetGen-2.2.5-stable.zip
