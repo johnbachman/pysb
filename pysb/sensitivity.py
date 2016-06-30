@@ -273,8 +273,10 @@ class Sensitivity(object):
         # Create the sensitivity matrix as a view on the original ydot array
         # Get only the sensitivity entries and transpose so tspan is last
         # dimension:
-        self.ysens = self.y[:, len(model.odes):].T.reshape(
-                       (len(model.odes), len(model.parameters), len(self.tspan)))
+        self.ysens = self.y[:, len(self.model.odes):].T.reshape(
+                     (len(self.tspan), len(self.model.odes),
+                      len(self.model.parameters)))
+        self.yodes = self.y[:, 0:len(self.model.odes)]
         # Create the sensitivity matrix of the observables
         for i, obs in enumerate(self.model.observables):
             # We don't need to bother multiplying by the observables coefficients
@@ -283,14 +285,14 @@ class Sensitivity(object):
                 #self.yobs_sens_view[i, :, :] = \
                 #                self.ysens[obs.species, :, :].sum(axis=0)
                 self.yobs_sens[obs_name] = \
-                                self.ysens[obs.species, :, :].sum(axis=0)
+                        self.ysens[:, obs.species, :].sum(axis=0)
             else:
                 # FIXME FIXME FIXME
                 # There's got to be a better way to do this multiplication
                 # (i.e., without a for loop!)
-                for p_ix in range(len(model.parameters)):
+                for p_ix in range(len(self.model.parameters)):
                     self.yobs_sens[obs.name][p_ix] = \
-                      (self.ysens[obs.species, p_ix, :].T *
+                            (self.ysens[:, obs.species, p_ix].T *
                                     obs.coefficients).sum(axis=1).T
                     #self.yobs_sens_view[i, p_ix, :] = \
                     #  (self.ysens[obs.species, p_ix, :].T *
