@@ -79,13 +79,26 @@ def eqn_substitutions(model, eqns):
     """String substitutions on the sympy C code for the ODE RHS and
     Jacobian functions to use appropriate terms for variables and
     parameters."""
-    # Substitute 'y[i]' for 'si'
-    eqns = re.sub(r's(\d+)',
-                  lambda m: 'y[%s]' % (int(m.group(1))), eqns)
     # Substitute expanded parameter formulas for any named expressions
     for e in model.expressions:
         eqns = re.sub(r'\b(%s)\b' % e.name,
                       sympy.ccode(e.expand_expr()), eqns)
+    # Substitute sums of observable species that could've been added
+    # by expressions
+    for obs in model.observables:
+        obs_string = ''
+        for i in range(len(obs.coefficients)):
+            if i > 0:
+                obs_string += "+"
+            if obs.coefficients[i] > 1:
+                obs_string += str(obs.coefficients[i])+"*"
+            obs_string += "__s"+str(obs.species[i])
+        if len(obs.coefficients) > 1:
+            obs_string = '(' + obs_string + ')'
+        eqns = re.sub(r'\b(%s)\b' % obs.name, obs_string, eqns)
+    # Substitute 'y[i]' for 'si'
+    eqns = re.sub(r'\b__s(\d+)\b', lambda m: 'y[%s]' % (int(m.group(1))),
+                       eqns)
     # Substitute 'p[i]' for any named parameters
     for i, p in enumerate(model.parameters):
         eqns = re.sub(r'\b(%s)\b' % p.name, 'p[%d]' % i, eqns)
@@ -94,7 +107,7 @@ def eqn_substitutions(model, eqns):
 def get_model_odes_as_str(model):
     # Generate the equations if we haven't already
     if not model.odes:
-        pysb.bng.generate_equations()
+        pysb.bng.generate_equations(model)
     # Prepare the string representations of the RHS equations
     code_eqs = '\n'.join(['ydot[%d] = %s;' %
                           (i, sympy.ccode(model.odes[i]))
