@@ -116,7 +116,7 @@ class Sensitivity(object):
                 macro = arr_name.upper() + '1'
                 code_eqs = re.sub(r'\b%s\[(\d+)\]' % arr_name,
                                   '%s(\\1)' % macro, code_eqs)
-
+        print "---- code_eqs"
         print code_eqs
         def rhs(t, y, p):
             ydot = self.ydot
@@ -173,12 +173,19 @@ class Sensitivity(object):
         self.integrator = ode(rhs).set_integrator(integrator, **options)
 
         # Print TODO
+        print "---- model.species"
         print model.species
+        print "---- model.parameters"
         print model.parameters
+        print "---- model.odes"
         print sympy.Matrix(model.odes).__repr__()
+        print "---- jac_matrix"
         print jac_matrix.__repr__()
+        print "---- dfdp_matrix"
         print dfdp_matrix.__repr__()
+        print "---- S_matrix"
         print s_matrix.__repr__()
+        print "---- Sdot_matrix"
         print sdot_matrix.__repr__()
 
 
@@ -383,6 +390,6 @@ def mrna_protein_model():
 if __name__ == '__main__':
 
     plt.ion()
-    #sens = exp_decay_model()
-    sens = mrna_protein_model()
+    sens = exp_decay_model()
+    #sens = mrna_protein_model()
 

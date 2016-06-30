@@ -67,7 +67,7 @@ def get_jacobian_matrix(model):
     if not model.odes:
         pysb.bng.generate_equations()
     # Calculate the Jacobian using Sympy
-    species_names = ['s%d' % i for i in range(len(model.species))]
+    species_names = ['__s%d' % i for i in range(len(model.species))]
     # Note: for some reason the built-in Sympy method, of simply doing
     # jac_matrix = sympy.Matrix(model.odes).jacobian(species_names)
     # didn't work on the EARM model. But this does.
