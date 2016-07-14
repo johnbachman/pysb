@@ -54,10 +54,11 @@ class Sensitivity(object):
         # Calculate the derivatives of each equation with respect to the
         # parameters
         dfdp_matrix = sympy.Matrix(len(model.species), len(model.parameters),
-                              lambda i, j: sympy.diff(model.odes[i],
-                                                      model.parameters[j].name))
+                           lambda i, j: sympy.diff(model.odes[int(i)],
+                                                   model.parameters[int(j)].name))
         s_matrix = sympy.Matrix(len(model.species), len(model.parameters),
-                              lambda i, j: sympy.Symbol('sens_%d_%d' % (i, j)))
+                           lambda i, j: sympy.Symbol('sens_%d_%d' %
+                                                     (int(i), int(j))))
         # The sensitivity matrix: s_i'(t) = J * s_i(t) + dy'(t)/dp
         sdot_matrix = jac_matrix * s_matrix + dfdp_matrix
         # Prepare the sensitivity entries as a list of strings
