@@ -152,7 +152,7 @@ class Sensitivity(object):
             self.yobs = np.ndarray(len(tspan), zip(model.observables.keys(),
                                                       itertools.repeat(float)))
             # FIXME FIXME FIXME Could never get the view to work correctly
-            self.yobs_sens = np.ndarray((len(model.parameters), len(tspan)),
+            self.yobs_sens = np.ndarray((len(tspan), len(model.parameters)),
                            zip(model.observables.keys(), itertools.repeat(float)))
         # TODO TODO TODO What is purpose of this section?
         else:
@@ -161,8 +161,8 @@ class Sensitivity(object):
         # Initialize view of observables record array
         self.yobs_view = self.yobs.view(float).reshape(len(self.yobs), -1)
         # FIXME FIXME FIXME Could never get the view to work correctly
-        #self.yobs_sens_view = self.yobs_sens.view(float).reshape(
-        #              len(model.observables), len(model.parameters), len(tspan))
+        self.yobs_sens_view = self.yobs_sens.view(float).reshape(
+                      len(model.observables), len(model.parameters), len(tspan))
         # Initialize array for expression timecourses
         exprs = model.expressions_dynamic()
         if len(exprs):
@@ -274,27 +274,25 @@ class Sensitivity(object):
         # Create the sensitivity matrix as a view on the original ydot array
         # Get only the sensitivity entries and transpose so tspan is last
         # dimension:
-        self.ysens = self.y[:, len(self.model.odes):].T.reshape(
+        self.ysens = self.y[:, len(self.model.odes):].reshape(
                      (len(self.tspan), len(self.model.odes),
                       len(self.model.parameters)))
         self.yodes = self.y[:, 0:len(self.model.odes)]
         # Create the sensitivity matrix of the observables
         for i, obs in enumerate(self.model.observables):
-            # We don't need to bother multiplying by the observables coefficients
-            # if they are all ones!
-            if np.all(obs.coefficients == 1):
+            # We don't need to bother multiplying by the observables
+            # coefficients if they are all ones
+            if np.all(obs.coefficients == np.ones(len(obs.coefficients))):
                 #self.yobs_sens_view[i, :, :] = \
                 #                self.ysens[obs.species, :, :].sum(axis=0)
-                self.yobs_sens[obs_name] = \
-                        self.ysens[:, obs.species, :].sum(axis=0)
+                self.yobs_sens[obs.name] = \
+                        self.ysens[:, obs.species, :].sum(axis=1)
             else:
-                # FIXME FIXME FIXME
-                # There's got to be a better way to do this multiplication
-                # (i.e., without a for loop!)
-                for p_ix in range(len(self.model.parameters)):
-                    self.yobs_sens[obs.name][p_ix] = \
-                            (self.ysens[:, obs.species, p_ix].T *
-                                    obs.coefficients).sum(axis=1).T
+                self.yobs_sens[obs.name][:, :] =  \
+                    np.tensordot(self.ysens[:, obs.species, :],
+                                      obs.coefficients, axes=(1, 0))
+                            #(self.ysens[:, obs.species, p_ix].T *
+                            #        obs.coefficients).sum(axis=1).T
                     #self.yobs_sens_view[i, p_ix, :] = \
                     #  (self.ysens[obs.species, p_ix, :].T *
                     #                obs.coefficients).sum(axis=1).T
